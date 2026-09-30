@@ -1,0 +1,107 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maison Ryx</title><link rel="icon" href="logo.svg" type="image/svg+xml"><link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><style>
+:root{--bg:#faf6ef;--card:#fff;--ink:#1c1712;--mute:#7a6f60;--gold:#a8842f;--line:#e6dccb}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Cairo,Tahoma,sans-serif}.bar{background:#1c1712;color:#f3e9d2;text-align:center;padding:10px}.wrap{max-width:1200px;margin:auto;padding:25px 16px}.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.logo{font-family:Amiri;font-size:38px;color:var(--gold)}.btn{background:var(--ink);color:var(--bg);border:0;padding:9px 15px;border-radius:6px;cursor:pointer;font:inherit}.g{background:transparent;color:var(--ink);border:1px solid var(--line)}.danger{border-color:#b33;background:transparent;color:#a22}.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px;margin:18px 0;overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:11px;border-bottom:1px solid var(--line);text-align:right}td small{display:block;color:var(--mute)}.thumb{width:48px;height:48px;object-fit:cover;border-radius:5px}input,select,textarea{font:inherit;padding:10px;border:1px solid var(--line);background:#fff;border-radius:7px;width:100%}.login{max-width:420px;margin:12vh auto;background:#fff;padding:25px;border:1px solid var(--line);border-radius:12px}.login label{display:block;margin:10px 0;font-size:13px}.login button{width:100%;margin-top:10px}.f{display:grid;grid-template-columns:1fr 1fr;gap:10px}.f label{font-size:12px;display:flex;flex-direction:column;gap:4px}.w{grid-column:1/-1}dialog{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;width:min(600px,94vw);padding:20px}dialog::backdrop{background:#000a}.actions{display:flex;gap:8px;margin-top:15px}
+</style></head><body>
+<div class="bar">لوحة تحكم Maison Ryx · للمالك فقط</div>
+<section id="login" class="login"><div class="logo">MAISON RYX</div><h2>تسجيل الدخول</h2>
+<form id="loginForm"><label>البريد الإلكتروني<input id="email" type="email" required></label><label>كلمة المرور<input id="password" type="password" required></label><button class="btn">دخول</button></form></section>
+<main id="app" hidden><div class="wrap"><div class="top"><div class="logo">MAISON RYX <small style="font-family:Cairo;font-size:13px;color:var(--mute)">Admin</small></div><div><button class="btn" id="add">+ إضافة عطر</button> <button class="btn g" id="logout">تسجيل الخروج</button></div></div>
+<section class="panel"><h2>العطور</h2><table><thead><tr><th></th><th>العطر</th><th>السعر</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody id="products"></tbody></table></section>
+<section class="panel"><h2>الطلبات</h2><table><thead><tr><th>التاريخ</th><th>المنتج</th><th>العميل</th><th>العنوان</th><th>الحالة</th></tr></thead><tbody id="orders"></tbody></table></section></div></main>
+<dialog id="dlg"><h2>إضافة / تعديل عطر</h2><div class="f">
+<label class="w">اسم العطر<input id="fn"></label><label>السعر<input id="fp" type="number" min="0"></label><label>السعر قبل الخصم<input id="fo" type="number" min="0"></label><label>الحجم (مل)<input id="fs" type="number" min="0"></label>
+<label>القسم<select id="fc"><option value="perfume">عطور</option><option value="oil">زيوت</option><option value="incense">بخور</option><option value="mist">بخاخات</option></select></label>
+<label>المصدر<select id="fk"><option value="own">من تصميمي</option><option value="brought">مختارات</option></select></label>
+<label>الشارة<select id="fb"><option value="">بدون</option><option>جديد</option><option>الأكثر مبيعًا</option><option>إصدار محدود</option></select></label>
+<label class="w">المكونات / الروائح<input id="fnotes"></label><label class="w">الوصف<textarea id="fd" rows="3"></textarea></label><label class="w">صورة العطر<input id="fi" type="file" accept="image/*"></label>
+<label class="w"><span><input id="fx" type="checkbox" style="width:auto"> نفد من المخزون</span></label></div><div class="actions"><button class="btn" id="save">حفظ ونشر</button><button class="btn g" id="cancel">إلغاء</button></div></dialog>
+<div id="toast"></div><script src="config.js"></script><script>const cfg = window.MAISON_RYX_CONFIG;
+const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+let products=[], orders=[], editing=null;
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');setTimeout(()=>$('#toast').classList.remove('show'),2400)}
+
+async function guard(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){$('#login').hidden=false;$('#app').hidden=true;return false;}
+  $('#login').hidden=true;$('#app').hidden=false;return true;
+}
+async function load(){
+  if(!(await guard())) return;
+  const p=await sb.from('products').select('*').order('created_at',{ascending:false});
+  const o=await sb.from('orders').select('*').order('created_at',{ascending:false});
+  if(p.error||o.error){console.error(p.error||o.error);toast('تحقق من صلاحيات Supabase');return;}
+  products=p.data||[];orders=o.data||[];renderProducts();renderOrders();
+}
+function renderProducts(){
+  $('#products').innerHTML=products.map(p=>`<tr>
+    <td>${p.image_url?`<img class="thumb" src="${esc(p.image_url)}">`:''}</td>
+    <td><b>${esc(p.name)}</b><small>${esc(p.notes||'')}</small></td>
+    <td>${p.price} ${cfg.CURRENCY}</td><td>${p.out_of_stock?'نفد':'متوفر'}</td>
+    <td><button class="btn g" data-edit="${p.id}">تعديل</button> <button class="btn danger" data-del="${p.id}">حذف</button></td>
+  </tr>`).join('');
+}
+function renderOrders(){
+  $('#orders').innerHTML=orders.map(o=>`<tr>
+    <td>${new Date(o.created_at).toLocaleString('ar-DZ')}</td><td>${esc(o.product_name)} × ${o.quantity}</td>
+    <td>${esc(o.customer_name)}<small>${esc(o.phone)}</small></td><td>${esc(o.address)}</td>
+    <td><select data-status="${o.id}">
+      ${['new','processing','shipped','completed','cancelled'].map(s=>`<option value="${s}" ${s===o.status?'selected':''}>${{new:'جديد',processing:'قيد التجهيز',shipped:'تم الشحن',completed:'مكتمل',cancelled:'ملغي'}[s]}</option>`).join('')}
+    </select></td>
+  </tr>`).join('') || '<tr><td colspan="5">لا توجد طلبات.</td></tr>';
+}
+function openForm(id){
+  editing=id;
+  const p=products.find(x=>x.id===id)||{category:'perfume',source:'own'};
+  $('#fn').value=p.name||'';$('#fp').value=p.price||0;$('#fo').value=p.old_price||'';
+  $('#fs').value=p.size_ml||'';$('#fc').value=p.category||'perfume';$('#fk').value=p.source||'own';
+  $('#fb').value=p.badge||'';$('#fnotes').value=p.notes||'';$('#fd').value=p.description||'';$('#fx').checked=!!p.out_of_stock;$('#fi').value='';
+  $('#dlg').showModal();
+}
+async function saveProduct(){
+  const name=$('#fn').value.trim(); if(!name)return toast('اكتب اسم العطر');
+  let image_url=products.find(x=>x.id===editing)?.image_url||null;
+  const file=$('#fi').files[0];
+  if(file){
+    const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'-');
+    const path=`${crypto.randomUUID()}-${safe}`;
+    const up=await sb.storage.from('perfume-images').upload(path,file,{upsert:false});
+    if(up.error)return toast('تعذر رفع الصورة: '+up.error.message);
+    image_url=sb.storage.from('perfume-images').getPublicUrl(path).data.publicUrl;
+  }
+  const row={name,price:Number($('#fp').value)||0,old_price:Number($('#fo').value)||null,size_ml:Number($('#fs').value)||null,
+    category:$('#fc').value,source:$('#fk').value,badge:$('#fb').value||null,notes:$('#fnotes').value.trim()||null,
+    description:$('#fd').value.trim()||null,image_url,out_of_stock:$('#fx').checked,updated_at:new Date().toISOString()};
+  const r=editing?await sb.from('products').update(row).eq('id',editing):await sb.from('products').insert(row);
+  if(r.error)return toast(r.error.message);
+  $('#dlg').close();toast(editing?'تم تعديل العطر':'تمت إضافة العطر');load();
+}
+document.querySelector('#loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const {error}=await sb.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});
+  if(error)toast(error.message);else load();
+});
+document.addEventListener('click',async e=>{
+  if(e.target.id==='add')openForm(null);
+  if(e.target.dataset.edit)openForm(e.target.dataset.edit);
+  if(e.target.id==='cancel')$('#dlg').close();
+  if(e.target.id==='save')saveProduct();
+  if(e.target.dataset.del){
+    if(!confirm('حذف هذا العطر؟'))return;
+    const r=await sb.from('products').delete().eq('id',e.target.dataset.del);
+    if(r.error)toast(r.error.message);else load();
+  }
+  if(e.target.id==='logout'){await sb.auth.signOut();load();}
+});
+document.addEventListener('change',async e=>{
+  if(e.target.dataset.status){
+    const r=await sb.from('orders').update({status:e.target.value}).eq('id',e.target.dataset.status);
+    if(r.error)toast(r.error.message);else toast('تم تحديث الطلب');
+  }
+});
+load();
+</script></body></html>

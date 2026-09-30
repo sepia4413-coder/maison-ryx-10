@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260">
+  <rect width="900" height="260" fill="none"/>
+  <g fill="#a8842f">
+    <path d="M92 130c0-55 45-100 100-100 55 0 100 45 100 100s-45 100-100 100c-55 0-100-45-100-100zm28 0c0 40 32 72 72 72s72-32 72-72-32-72-72-72-72 32-72 72z" opacity=".18"/>
+    <path d="M142 130c0-28 23-50 50-50s50 22 50 50-23 50-50 50-50-22-50-50zm18 0c0 18 14 32 32 32s32-14 32-32-14-32-32-32-32 14-32 32z"/>
+    <path d="M176 18h32v36h-32z"/><path d="M166 44h52v18h-52z"/>
+  </g>
+  <text x="330" y="125" fill="#a8842f" font-family="Georgia,Times New Roman,serif" font-size="82" letter-spacing="10">MAISON RYX</text>
+  <text x="337" y="176" fill="#7a6f60" font-family="Arial,sans-serif" font-size="22" letter-spacing="9">PARFUMS · عطور</text>
+</svg>
